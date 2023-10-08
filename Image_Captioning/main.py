@@ -1,6 +1,8 @@
 import random
 import os
 from dataloader import *
+from model import *
+import torch.optim as optim
 
 use_cuda = torch.cuda.is_available()
 print('use_cuda: {}'.format(use_cuda))
@@ -30,13 +32,6 @@ def train_val_test_split(img_folder, annotation_path):
     val_images = images[int(0.7*len(images)):int(0.8*len(images))]
     test_images = images[int(0.8*len(images)):]
 
-    #Creating train, val, test list with tuples of (img, cap) from the splits.
-    # for img in train_images:
-    #     for cap in image_caption_dict[img]:
-    #         img_path = os.path.join(img_folder, img)
-    #         if(os.path.exists(img_path)):
-    #             print(img_path, cap)
-
     train_list = [(os.path.join(img_folder, img), cap) for img in train_images for cap in image_caption_dict[img] if os.path.exists(os.path.join(img_folder, img))]
     val_list = [(os.path.join(img_folder, img), cap) for img in val_images for cap in image_caption_dict[img] if os.path.exists(os.path.join(img_folder, img))]
     test_list = [(os.path.join(img_folder, img), cap) for img in test_images for cap in image_caption_dict[img] if os.path.exists(os.path.join(img_folder, img))]
@@ -44,13 +39,20 @@ def train_val_test_split(img_folder, annotation_path):
     return train_list, val_list, test_list
 
 
-def train_epoch(train_loader):
+def train_epoch(train_loader, model, criterion, optimizer):
 
+    model = model.to(device)
+    model.train()
     for img_tensor, cap_tensor in train_loader:
         img_tensor = img_tensor.to(device)
         cap_tensor = cap_tensor.to(device)
+        outputs = model(img_tensor, cap_tensor[:-1])
+        train_loss = criterion(outputs.reshape(-1, outputs.shape[2]), cap_tensor.reshape(-1))
+        optimizer.zero_grad()
+        train_loss.backward()
+        optimizer.step()
 
-        print(img_tensor.shape, cap_tensor.shape)
+        
 
 
 def val_epoch():
@@ -58,9 +60,8 @@ def val_epoch():
 def test_epoch():
     pass
 
-def train_val_test(train_loader):
-
-    train_epoch(train_loader)
+def train_val_test(train_loader, val_loader, test_loader, model, loss, optimizer):
+    train_epoch(train_loader, model, loss, optimizer)
 
 def main():
 
@@ -82,9 +83,13 @@ def main():
     for id, word in enumerate(words):
         word2int[word] = id
         int2word[id] = word
-
-    train_loader = load_data(train_list, word2int, batch_size=128, num_workers=10)
-
-    train_val_test(train_loader)
-
+    batch_size = 32
+    train_loader = load_data(train_list, word2int, batch_size=batch_size, num_workers=10)
+    val_loader = load_data(val_list, word2int, batch_size=batch_size, num_workers=10)
+    test_loader = load_data(test_list, word2int, batch_size=batch_size, num_workers=10)
+    model = CNNtoRNN(embed_size=512, hidden_size=256, vocab_size=len(word2int), num_layers=3).to(device)
+    loss = nn.CrossEntropyLoss(ignore_index=word2int["<PAD>"])
+    learning_rate = 3e-4
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    train_val_test(train_loader, val_loader, test_loader, model, loss, optimizer)
 main()

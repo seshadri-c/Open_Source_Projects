@@ -3,6 +3,8 @@ from torch.utils.data import Dataset, DataLoader
 import cv2
 import re
 import torch
+import numpy as np
+import einops
 
 
 class DataGenerator(Dataset):
@@ -50,9 +52,10 @@ class DataGenerator(Dataset):
                     numericalizaed_sentences.append(self.word2int["<UNK>"])                    
             modified_cap.append(numericalizaed_sentences)
 
-        cap_tensor = torch.tensor(modified_cap)
-        img_tensor = torch.tensor(img_list)
-        
+        cap_tensor = torch.tensor(np.array(modified_cap))
+        img_tensor = torch.tensor(np.array(img_list), dtype=torch.float32)
+        img_tensor = einops.rearrange(img_tensor, "B H W C -> B C H W")
+        cap_tensor = einops.rearrange(cap_tensor, "B T -> T B")
         return img_tensor, cap_tensor
 
 def load_data(data, word2int, batch_size=1, num_workers=10, shuffle=True):
