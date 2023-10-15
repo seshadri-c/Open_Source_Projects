@@ -13,7 +13,8 @@ class DataGenerator(Dataset):
         self.word2int = word2int
 
     def __len__(self):
-        return len(self.files)
+        return 100
+        # return len(self.files)
     def __getitem__(self,idx):
         img_path, cap = self.files[idx]
         img = cv2.imread(img_path)
